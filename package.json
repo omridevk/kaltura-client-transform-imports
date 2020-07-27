@@ -6,13 +6,21 @@
   "scripts": {
     "test": "rm -rf lib && babel test -d lib"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,json,md}": [
+      "prettier --write",
+      "git add"
+    ]
+  },
   "author": "omridevk",
   "license": "MIT",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@babel/types": "^7.10.5",
     "@babel/cli": "^7.10.5",
-    "@babel/core": "^7.10.5"
+    "@babel/core": "^7.10.5",
+    "@babel/types": "^7.10.5",
+    "husky": "^4.2.5",
+    "lint-staged": "^10.2.11",
+    "prettier": "^2.0.5"
   }
 }

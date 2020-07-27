@@ -1,61 +1,46 @@
-var types = require('@babel/types');
+const t = require("@babel/types");
 
-var pathLib = require('path');
-
-function findOptionFromSource(source, state) {
-    var opts = state.opts;
-    if (opts[source]) return source;
-
-
-    if (opt) return opt;
-
-    var isRelativePath = source.match(/^\.{0,2}\//);
-    // This block handles relative paths, such as ./components, ../../components, etc.
-    if (isRelativePath) {
-        var dirname = source[0] === '/' ? '' : state.file.opts.filename ? pathLib.dirname(state.file.opts.filename) : '.'
-        var _source = pathLib.resolve(pathLib.join(dirname, source));
-
-        if (opts[_source]) {
-            return _source;
-        }
-    }
-}
-
-function getMatchesFromSource(opt, source) {
-    var regex = new RegExp(opt, 'g');
-    var matches = [];
-    var m;
-    while ((m = regex.exec(source)) !== null) {
-        if (m.index === regex.lastIndex) regex.lastIndex++;
-        m.forEach(function (match) {
-            matches.push(match);
-        });
-    }
-    return matches;
-}
-
-function barf(msg) {
-    throw new Error('babel-plugin-transform-imports: ' + msg);
-}
-
-function transform(transformOption, importName, matches) {
-    if (typeof transformOption === 'function') {
-        return transformOption(importName, matches);
-    }
-
-    return transformOption.replace(/\$\{\s?([\w\d]*)\s?\}/ig, function (str, g1) {
-        if (g1 === 'member') return importName;
-        return matches[g1];
-    });
-}
-
+/**
+ * To improve tree shaking and let webpack do his thing
+ * and remove unused code by implicit import.
+ * this babel transformer takes care of that.
+ * replace imports like
+ * import {EntryVendorTaskExportToCsvAction, KalturaEntryVendorTaskFilter} from "kaltura-typescript-client/api/types";
+ * to
+ * import {EntryVendorTaskExportToCsvAction} from "kaltura-typescript-client/api/types/EntryVendorTaskExportToCsvAction";
+ * import {EntryVendorTaskExportToCsvAction} from "kaltura-typescript-client/api/types/KalturaEntryVendorTaskFilter";
+ * @returns {{visitor: {ImportDeclaration: visitor.ImportDeclaration}}}
+ */
 module.exports = function () {
     return {
         visitor: {
-            ImportDeclaration: function (path, state) {
-                console.log(path);
-                console.log(state);
+            ImportDeclaration: function (path) {
+                if (path.node.source.value !== "kaltura-typescript-client/api/types") {
+                    return;
+                }
+                const transforms = [];
+                const memberImports = path.node.specifiers.filter(
+                    (specifier) => specifier.type === "ImportSpecifier"
+                );
+                const source = path.node.source.value;
+
+                memberImports.forEach((memberImport) => {
+                    const newImportSpecifier = t.importSpecifier(
+                        t.identifier(memberImport.local.name),
+                        t.identifier(memberImport.local.name)
+                    );
+                    transforms.push(
+                        t.importDeclaration(
+                            [newImportSpecifier],
+                            t.stringLiteral(`${source}/${memberImport.local.name}`)
+                        )
+                    );
+                });
+                if (transforms.length < 1) {
+                    return;
+                }
+                path.replaceWithMultiple(transforms);
             }
         }
-    }
-}
+    };
+};
